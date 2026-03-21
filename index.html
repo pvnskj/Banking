@@ -1,0 +1,558 @@
+import React, { useMemo, useRef, useState } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Progress } from "@/components/ui/progress";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ResponsiveContainer, PieChart, Pie, Tooltip, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend } from "recharts";
+import { Upload, Wallet, TrendingUp, TrendingDown, Target, FileSpreadsheet, AlertCircle, Download, Sparkles } from "lucide-react";
+import * as XLSX from "xlsx";
+import Papa from "papaparse";
+
+const CATEGORY_RULES = [
+  { category: "Rent / Housing", keywords: ["rent", "apartment", "property", "lease", "landlord"] },
+  { category: "Groceries", keywords: ["costco", "walmart", "king soopers", "safeway", "trader joe", "whole foods", "target grocery"] },
+  { category: "Dining", keywords: ["restaurant", "cafe", "coffee", "starbucks", "doordash", "ubereats", "grubhub", "chipotle", "mcdonald", "panera"] },
+  { category: "Utilities", keywords: ["xcel", "electric", "water", "gas", "utility", "comcast", "xfinity", "internet"] },
+  { category: "Insurance", keywords: ["insurance", "lemonade", "geico", "progressive", "state farm"] },
+  { category: "Transportation", keywords: ["uber", "lyft", "metro", "parking", "toll", "shell", "chevron", "evgo", "xeal", "gas"] },
+  { category: "Travel", keywords: ["airbnb", "hilton", "hyatt", "priceline", "booking", "expedia", "airlines", "southwest", "united", "delta", "hawaiian"] },
+  { category: "Shopping", keywords: ["amazon", "nike", "zara", "macy", "sephora", "ulta", "best buy"] },
+  { category: "Subscriptions", keywords: ["netflix", "spotify", "youtube", "apple.com/bill", "google one", "hulu", "prime", "subscription"] },
+  { category: "Phone", keywords: ["boost mobile", "t-mobile", "verizon", "att", "at&t"] },
+  { category: "Healthcare", keywords: ["pharmacy", "walgreens", "cvs", "hospital", "clinic", "quest", "labcorp"] },
+  { category: "Income", keywords: ["payroll", "salary", "deposit", "direct dep", "refund", "bonus", "interest"] },
+];
+
+const PIE_COLORS = [
+  "hsl(var(--chart-1))",
+  "hsl(var(--chart-2))",
+  "hsl(var(--chart-3))",
+  "hsl(var(--chart-4))",
+  "hsl(var(--chart-5))",
+  "hsl(220 70% 60%)",
+  "hsl(160 60% 45%)",
+  "hsl(32 85% 58%)",
+  "hsl(280 65% 62%)",
+  "hsl(10 80% 62%)",
+];
+
+function currency(n) {
+  const value = Number(n || 0);
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
+function normalizeHeader(s) {
+  return String(s || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function inferColumns(headers) {
+  const normalized = headers.map((h) => ({ raw: h, norm: normalizeHeader(h) }));
+  const pick = (patterns) => {
+    const found = normalized.find((h) => patterns.some((p) => h.norm.includes(p)));
+    return found?.raw || "";
+  };
+
+  return {
+    date: pick(["date", "posted", "transaction date"]),
+    description: pick(["description", "merchant", "details", "name", "memo", "transaction"]),
+    amount: pick(["amount", "transaction amount", "value"]),
+    debit: pick(["debit", "withdrawal", "money out", "expense"]),
+    credit: pick(["credit", "deposit", "money in", "income"]),
+  };
+}
+
+function parseAmount(value) {
+  if (value === null || value === undefined || value === "") return 0;
+  if (typeof value === "number") return value;
+  const cleaned = String(value)
+    .replace(/\$/g, "")
+    .replace(/,/g, "")
+    .replace(/\(/g, "-")
+    .replace(/\)/g, "")
+    .trim();
+  const parsed = Number(cleaned);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function categorize(description, amount) {
+  const text = String(description || "").toLowerCase();
+
+  if (amount > 0) {
+    const incomeMatch = CATEGORY_RULES.find(
+      (rule) => rule.category === "Income" && rule.keywords.some((k) => text.includes(k))
+    );
+    return incomeMatch ? "Income" : "Other Income";
+  }
+
+  const match = CATEGORY_RULES.find(
+    (rule) => rule.category !== "Income" && rule.keywords.some((k) => text.includes(k))
+  );
+  return match?.category || "Uncategorized";
+}
+
+function monthKey(dateValue) {
+  const d = new Date(dateValue);
+  if (Number.isNaN(d.getTime())) return "Unknown";
+  return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+}
+
+function exportCsv(rows, filename) {
+  const csv = Papa.unparse(rows);
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.setAttribute("download", filename);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+export default function SpendingDashboardWebApp() {
+  const fileInputRef = useRef(null);
+  const [rawRows, setRawRows] = useState([]);
+  const [fileName, setFileName] = useState("");
+  const [headers, setHeaders] = useState([]);
+  const [mapping, setMapping] = useState({ date: "", description: "", amount: "", debit: "", credit: "" });
+  const [monthlyIncomeTarget, setMonthlyIncomeTarget] = useState("5500");
+  const [monthlySavingsGoal, setMonthlySavingsGoal] = useState("1000");
+  const [notes, setNotes] = useState("");
+
+  const normalizedRows = useMemo(() => {
+    return rawRows
+      .map((row, idx) => {
+        const date = mapping.date ? row[mapping.date] : "";
+        const description = mapping.description ? row[mapping.description] : "";
+
+        let amount = 0;
+        if (mapping.amount) {
+          amount = parseAmount(row[mapping.amount]);
+        } else {
+          const debit = parseAmount(mapping.debit ? row[mapping.debit] : 0);
+          const credit = parseAmount(mapping.credit ? row[mapping.credit] : 0);
+          amount = credit - Math.abs(debit);
+        }
+
+        const category = categorize(description, amount);
+        return {
+          id: idx + 1,
+          date,
+          description: String(description || "").trim(),
+          amount,
+          category,
+          month: monthKey(date),
+        };
+      })
+      .filter((r) => r.description || r.amount !== 0 || r.date);
+  }, [rawRows, mapping]);
+
+  const summary = useMemo(() => {
+    const income = normalizedRows.filter((r) => r.amount > 0).reduce((sum, r) => sum + r.amount, 0);
+    const expenses = normalizedRows.filter((r) => r.amount < 0).reduce((sum, r) => sum + Math.abs(r.amount), 0);
+    const netSavings = income - expenses;
+    const savingsGoal = Number(monthlySavingsGoal || 0);
+    const savingsProgress = savingsGoal > 0 ? Math.min((netSavings / savingsGoal) * 100, 100) : 0;
+    const onTrack = netSavings >= savingsGoal;
+    return { income, expenses, netSavings, savingsGoal, savingsProgress, onTrack };
+  }, [normalizedRows, monthlySavingsGoal]);
+
+  const categoryData = useMemo(() => {
+    const map = new Map();
+    normalizedRows
+      .filter((r) => r.amount < 0)
+      .forEach((row) => {
+        map.set(row.category, (map.get(row.category) || 0) + Math.abs(row.amount));
+      });
+    return [...map.entries()]
+      .map(([name, value]) => ({ name, value: Number(value.toFixed(2)) }))
+      .sort((a, b) => b.value - a.value);
+  }, [normalizedRows]);
+
+  const monthlyData = useMemo(() => {
+    const map = new Map();
+    normalizedRows.forEach((row) => {
+      const entry = map.get(row.month) || { month: row.month, income: 0, expenses: 0, savings: 0 };
+      if (row.amount > 0) entry.income += row.amount;
+      if (row.amount < 0) entry.expenses += Math.abs(row.amount);
+      entry.savings = entry.income - entry.expenses;
+      map.set(row.month, entry);
+    });
+    return [...map.values()];
+  }, [normalizedRows]);
+
+  const insights = useMemo(() => {
+    if (!normalizedRows.length) return [];
+    const topCategory = categoryData[0];
+    const recurringSubscriptions = normalizedRows.filter((r) => r.category === "Subscriptions");
+    const incomeTarget = Number(monthlyIncomeTarget || 0);
+    const avgIncome = monthlyData.length
+      ? monthlyData.reduce((sum, m) => sum + m.income, 0) / monthlyData.length
+      : 0;
+
+    return [
+      topCategory ? `Top spend category: ${topCategory.name} at ${currency(topCategory.value)}.` : null,
+      `Net savings from uploaded data: ${currency(summary.netSavings)}.` ,
+      summary.onTrack
+        ? `You are on track against your savings goal of ${currency(summary.savingsGoal)}.`
+        : `You are behind your savings goal by ${currency(Math.max(summary.savingsGoal - summary.netSavings, 0))}.`,
+      recurringSubscriptions.length
+        ? `Detected ${recurringSubscriptions.length} subscription-related transaction${recurringSubscriptions.length > 1 ? "s" : ""}.`
+        : "No subscription transactions detected from current rules.",
+      incomeTarget > 0
+        ? `Average monthly income in the file is ${currency(avgIncome)} versus a target of ${currency(incomeTarget)}.`
+        : null,
+    ].filter(Boolean);
+  }, [normalizedRows, categoryData, summary, monthlyData, monthlyIncomeTarget]);
+
+  const handleFile = async (file) => {
+    if (!file) return;
+    setFileName(file.name);
+    const ext = file.name.split(".").pop()?.toLowerCase();
+
+    if (ext === "csv") {
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          const rows = results.data || [];
+          const fileHeaders = results.meta.fields || Object.keys(rows[0] || {});
+          setHeaders(fileHeaders);
+          setRawRows(rows);
+          setMapping(inferColumns(fileHeaders));
+        },
+      });
+      return;
+    }
+
+    if (["xlsx", "xls"].includes(ext)) {
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: "array" });
+      const firstSheet = workbook.SheetNames[0];
+      const ws = workbook.Sheets[firstSheet];
+      const json = XLSX.utils.sheet_to_json(ws, { defval: "" });
+      const fileHeaders = Object.keys(json[0] || {});
+      setHeaders(fileHeaders);
+      setRawRows(json);
+      setMapping(inferColumns(fileHeaders));
+      return;
+    }
+
+    alert("Please upload a CSV or Excel file. PDF statements would need OCR or a backend parser.");
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <div className="mx-auto max-w-7xl p-6 md:p-10">
+        <div className="mb-8 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+          <div>
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full border bg-white px-3 py-1 text-sm shadow-sm">
+              <Sparkles className="h-4 w-4" />
+              Personal Finance Upload Dashboard
+            </div>
+            <h1 className="text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">
+              Upload transactions and instantly see spending, savings, and whether you are on track.
+            </h1>
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 md:text-base">
+              This webpage accepts transaction exports, auto-categorizes spend using merchant rules, calculates net savings,
+              and compares your results against your goals. Best for CSV or Excel exports from banks and credit cards.
+            </p>
+          </div>
+
+          <Card className="rounded-3xl border-0 shadow-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Upload className="h-5 w-5" />
+                Upload data
+              </CardTitle>
+              <CardDescription>CSV and Excel files supported out of the box.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-center">
+                <FileSpreadsheet className="mx-auto mb-3 h-8 w-8 text-slate-500" />
+                <p className="text-sm text-slate-600">Drag a file here or choose one from your device.</p>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv,.xlsx,.xls"
+                  className="hidden"
+                  onChange={(e) => handleFile(e.target.files?.[0])}
+                />
+                <Button className="mt-4 rounded-2xl" onClick={() => fileInputRef.current?.click()}>
+                  Choose file
+                </Button>
+                {fileName ? <p className="mt-3 text-xs text-slate-500">Loaded: {fileName}</p> : null}
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Monthly income target</Label>
+                  <Input value={monthlyIncomeTarget} onChange={(e) => setMonthlyIncomeTarget(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Monthly savings goal</Label>
+                  <Input value={monthlySavingsGoal} onChange={(e) => setMonthlySavingsGoal(e.target.value)} />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Notes</Label>
+                <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional assumptions or reminders" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {!rawRows.length ? (
+          <Alert className="rounded-2xl border-amber-200 bg-amber-50">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>No transactions uploaded yet</AlertTitle>
+            <AlertDescription>
+              Start with a CSV or Excel export that includes transaction date, merchant/description, and either amount or separate debit/credit columns.
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <>
+            <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <Card className="rounded-3xl border-0 bg-white shadow-md">
+                <CardContent className="flex items-center justify-between p-6">
+                  <div>
+                    <p className="text-sm text-slate-500">Income</p>
+                    <p className="mt-2 text-2xl font-semibold">{currency(summary.income)}</p>
+                  </div>
+                  <div className="rounded-2xl bg-emerald-100 p-3 text-emerald-700"><TrendingUp className="h-5 w-5" /></div>
+                </CardContent>
+              </Card>
+
+              <Card className="rounded-3xl border-0 bg-white shadow-md">
+                <CardContent className="flex items-center justify-between p-6">
+                  <div>
+                    <p className="text-sm text-slate-500">Expenses</p>
+                    <p className="mt-2 text-2xl font-semibold">{currency(summary.expenses)}</p>
+                  </div>
+                  <div className="rounded-2xl bg-rose-100 p-3 text-rose-700"><TrendingDown className="h-5 w-5" /></div>
+                </CardContent>
+              </Card>
+
+              <Card className="rounded-3xl border-0 bg-white shadow-md">
+                <CardContent className="flex items-center justify-between p-6">
+                  <div>
+                    <p className="text-sm text-slate-500">Net savings</p>
+                    <p className="mt-2 text-2xl font-semibold">{currency(summary.netSavings)}</p>
+                  </div>
+                  <div className="rounded-2xl bg-sky-100 p-3 text-sky-700"><Wallet className="h-5 w-5" /></div>
+                </CardContent>
+              </Card>
+
+              <Card className="rounded-3xl border-0 bg-white shadow-md">
+                <CardContent className="p-6">
+                  <div className="mb-3 flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-slate-500">Goal status</p>
+                      <p className="mt-2 text-2xl font-semibold">{summary.onTrack ? "On track" : "Behind"}</p>
+                    </div>
+                    <div className="rounded-2xl bg-violet-100 p-3 text-violet-700"><Target className="h-5 w-5" /></div>
+                  </div>
+                  <Progress value={Math.max(0, summary.savingsProgress)} className="h-2" />
+                  <p className="mt-2 text-xs text-slate-500">Goal: {currency(summary.savingsGoal)}</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="mb-6 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+              <Card className="rounded-3xl border-0 shadow-md">
+                <CardHeader>
+                  <CardTitle>Auto insights</CardTitle>
+                  <CardDescription>Quick takeaways from the uploaded data.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {insights.map((insight, idx) => (
+                    <div key={idx} className="rounded-2xl bg-slate-50 p-3 text-sm text-slate-700">{insight}</div>
+                  ))}
+                  {notes ? <div className="rounded-2xl bg-blue-50 p-3 text-sm text-blue-700">Note: {notes}</div> : null}
+                </CardContent>
+              </Card>
+
+              <Card className="rounded-3xl border-0 shadow-md">
+                <CardHeader>
+                  <CardTitle>Column mapping</CardTitle>
+                  <CardDescription>Adjust this if your bank export uses different column names.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+                    {[
+                      ["date", "Date"],
+                      ["description", "Description"],
+                      ["amount", "Amount"],
+                      ["debit", "Debit"],
+                      ["credit", "Credit"],
+                    ].map(([key, label]) => (
+                      <div key={key} className="space-y-2">
+                        <Label>{label}</Label>
+                        <Select value={mapping[key]} onValueChange={(value) => setMapping((prev) => ({ ...prev, [key]: value }))}>
+                          <SelectTrigger className="rounded-2xl">
+                            <SelectValue placeholder="Select column" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {headers.map((h) => (
+                              <SelectItem key={h} value={h}>{h}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Tabs defaultValue="overview" className="space-y-6">
+              <TabsList className="grid w-full grid-cols-4 rounded-2xl bg-white shadow-sm">
+                <TabsTrigger value="overview">Overview</TabsTrigger>
+                <TabsTrigger value="transactions">Transactions</TabsTrigger>
+                <TabsTrigger value="categories">Categories</TabsTrigger>
+                <TabsTrigger value="monthly">Monthly trend</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="overview" className="grid gap-6 lg:grid-cols-2">
+                <Card className="rounded-3xl border-0 shadow-md">
+                  <CardHeader>
+                    <CardTitle>Spending by category</CardTitle>
+                  </CardHeader>
+                  <CardContent className="h-[360px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={categoryData} dataKey="value" nameKey="name" outerRadius={120} innerRadius={65}>
+                          {categoryData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                        </Pie>
+                        <Tooltip formatter={(value) => currency(value)} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+
+                <Card className="rounded-3xl border-0 shadow-md">
+                  <CardHeader>
+                    <CardTitle>Where money is going</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {categoryData.slice(0, 8).map((item, idx) => (
+                      <div key={item.name} className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className="h-3 w-3 rounded-full" style={{ backgroundColor: PIE_COLORS[idx % PIE_COLORS.length] }} />
+                          <span className="text-sm font-medium text-slate-700">{item.name}</span>
+                        </div>
+                        <Badge variant="secondary" className="rounded-xl">{currency(item.value)}</Badge>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="transactions">
+                <Card className="rounded-3xl border-0 shadow-md">
+                  <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                      <CardTitle>Normalized transactions</CardTitle>
+                      <CardDescription>Auto-categorized rows ready for review or export.</CardDescription>
+                    </div>
+                    <Button variant="outline" className="rounded-2xl" onClick={() => exportCsv(normalizedRows, "categorized_transactions.csv")}>
+                      <Download className="mr-2 h-4 w-4" /> Export CSV
+                    </Button>
+                  </CardHeader>
+                  <CardContent className="max-h-[560px] overflow-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Description</TableHead>
+                          <TableHead>Category</TableHead>
+                          <TableHead className="text-right">Amount</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {normalizedRows.slice(0, 300).map((row) => (
+                          <TableRow key={row.id}>
+                            <TableCell>{String(row.date || "-")}</TableCell>
+                            <TableCell className="max-w-[420px] truncate">{row.description || "-"}</TableCell>
+                            <TableCell>{row.category}</TableCell>
+                            <TableCell className={`text-right font-medium ${row.amount < 0 ? "text-rose-600" : "text-emerald-600"}`}>
+                              {currency(row.amount)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="categories">
+                <Card className="rounded-3xl border-0 shadow-md">
+                  <CardHeader>
+                    <CardTitle>Category totals</CardTitle>
+                    <CardDescription>Expense totals based on current merchant rules.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="h-[420px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={categoryData} layout="vertical" margin={{ left: 20, right: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis type="number" tickFormatter={(v) => `$${Math.round(v)}`} />
+                        <YAxis type="category" dataKey="name" width={120} />
+                        <Tooltip formatter={(value) => currency(value)} />
+                        <Bar dataKey="value" radius={[0, 12, 12, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="monthly">
+                <Card className="rounded-3xl border-0 shadow-md">
+                  <CardHeader>
+                    <CardTitle>Monthly income, expense, and savings trend</CardTitle>
+                    <CardDescription>Useful for checking if you are improving over time.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="h-[420px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={monthlyData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="month" />
+                        <YAxis tickFormatter={(v) => `$${Math.round(v)}`} />
+                        <Tooltip formatter={(value) => currency(value)} />
+                        <Legend />
+                        <Bar dataKey="income" name="Income" radius={[10, 10, 0, 0]} />
+                        <Bar dataKey="expenses" name="Expenses" radius={[10, 10, 0, 0]} />
+                        <Bar dataKey="savings" name="Savings" radius={[10, 10, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
+          </>
+        )}
+
+        <div className="mt-8 rounded-3xl border bg-white p-5 text-sm leading-6 text-slate-600 shadow-sm">
+          <p className="font-medium text-slate-800">Current limitations</p>
+          <p className="mt-2">
+            This version is designed for CSV and Excel transaction exports. PDF bank statements, scanned statements, and image-based files would need OCR and a backend parser for reliable extraction.
+            The categorization also uses editable keyword rules, so accuracy improves as you tailor merchant matching to your own accounts.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
