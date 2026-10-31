@@ -41,6 +41,7 @@ if(/ONLINE TRANSFER|TRANSFER.*AMEX REWARDS|CAPITAL ONE.*TRANSFER/.test(d))return
 if(/PAYROLL/.test(d))return ['Income','Payroll'];
 if(/IRS.*TAX REF|CO DEPT REVENUE.*TAX|ROBINHOOD.*CREDITS/.test(d))return ['Other inflow','Other inflow'];
 if(/ZELLE|WESTERN UNION|REMITLY|RMTLY|VENMO/.test(d))return ['Fund Transfers','Fund transfer'];
+if(source==='checking'&&/WITHDRAWAL 03\/04/.test(d))return ['Rent','Expense'];
 if(/WITHDRAWAL/.test(d))return ['Review','Unclassified transfer'];
 if(/YOUR CASH REWARD|ANNUAL HOTEL CREDIT|OFFER:TURO/.test(d))return ['Rewards & statement credits','Other inflow'];
 if(/PURCHASE ADJUSTMENT/.test(d))return ['Professional Services','Refund'];
