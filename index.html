@@ -1,840 +1,93 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Spending Dashboard</title>
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <style>
-    :root {
-      --bg: #f4f7fb;
-      --card: #ffffff;
-      --text: #10233f;
-      --muted: #5f718c;
-      --border: #dbe4f0;
-      --blue: #3974ff;
-      --blue-soft: #eaf0ff;
-      --green: #138a5b;
-      --green-soft: #e8f8f1;
-      --red: #cc435c;
-      --red-soft: #ffedf1;
-      --purple: #7856ff;
-      --purple-soft: #f1edff;
-      --yellow: #a66a00;
-      --yellow-soft: #fff5df;
-      --shadow: 0 10px 30px rgba(16, 35, 63, 0.08);
-      --radius: 20px;
-    }
-
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: linear-gradient(180deg, #f7f9fc 0%, #eef4fb 100%);
-      color: var(--text);
-    }
-
-    .container {
-      max-width: 1250px;
-      margin: 0 auto;
-      padding: 28px 18px 60px;
-    }
-
-    .hero {
-      display: grid;
-      grid-template-columns: 1.2fr 0.8fr;
-      gap: 20px;
-      align-items: start;
-      margin-bottom: 22px;
-    }
-
-    .pill {
-      display: inline-block;
-      background: white;
-      border: 1px solid var(--border);
-      border-radius: 999px;
-      padding: 8px 12px;
-      font-size: 13px;
-      color: var(--muted);
-      box-shadow: var(--shadow);
-      margin-bottom: 10px;
-    }
-
-    h1 {
-      margin: 0;
-      font-size: 38px;
-      line-height: 1.12;
-      letter-spacing: -0.02em;
-    }
-
-    .subtitle {
-      color: var(--muted);
-      font-size: 15px;
-      line-height: 1.7;
-      margin-top: 14px;
-      max-width: 760px;
-    }
-
-    .card {
-      background: var(--card);
-      border: 1px solid rgba(219, 228, 240, 0.9);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      padding: 18px;
-    }
-
-    .upload-box {
-      border: 2px dashed var(--border);
-      border-radius: 18px;
-      padding: 24px;
-      text-align: center;
-      background: #f9fbff;
-    }
-
-    .btn {
-      border: 0;
-      border-radius: 14px;
-      padding: 12px 16px;
-      font-weight: 600;
-      background: var(--blue);
-      color: white;
-      cursor: pointer;
-    }
-
-    .btn.secondary {
-      background: white;
-      color: var(--text);
-      border: 1px solid var(--border);
-    }
-
-    .btn:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-
-    .grid-2, .grid-4 {
-      display: grid;
-      gap: 16px;
-    }
-    .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-
-    label {
-      display: block;
-      font-size: 13px;
-      font-weight: 600;
-      margin-bottom: 8px;
-      color: var(--muted);
-    }
-
-    input, select, textarea {
-      width: 100%;
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 12px 14px;
-      font-size: 14px;
-      color: var(--text);
-      background: white;
-    }
-
-    textarea { min-height: 80px; resize: vertical; }
-
-    .metrics {
-      margin-top: 18px;
-      margin-bottom: 18px;
-    }
-
-    .metric {
-      padding: 18px;
-      border-radius: 22px;
-      background: white;
-      border: 1px solid var(--border);
-      box-shadow: var(--shadow);
-    }
-
-    .metric-title {
-      color: var(--muted);
-      font-size: 13px;
-      margin-bottom: 8px;
-    }
-
-    .metric-value {
-      font-size: 30px;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-    }
-
-    .metric-tag {
-      display: inline-block;
-      padding: 8px 10px;
-      border-radius: 12px;
-      font-size: 12px;
-      font-weight: 700;
-      margin-top: 10px;
-    }
-
-    .green { background: var(--green-soft); color: var(--green); }
-    .red { background: var(--red-soft); color: var(--red); }
-    .blue { background: var(--blue-soft); color: var(--blue); }
-    .purple { background: var(--purple-soft); color: var(--purple); }
-    .yellow { background: var(--yellow-soft); color: var(--yellow); }
-
-    .section-grid {
-      display: grid;
-      grid-template-columns: 0.9fr 1.1fr;
-      gap: 16px;
-      margin-bottom: 18px;
-    }
-
-    .list-item {
-      background: #f8fbff;
-      border: 1px solid #e7eef8;
-      border-radius: 14px;
-      padding: 12px 14px;
-      margin-bottom: 10px;
-      color: #334a67;
-      line-height: 1.5;
-      font-size: 14px;
-    }
-
-    .tabs {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      margin-bottom: 14px;
-    }
-
-    .tab-btn {
-      padding: 11px 14px;
-      border-radius: 14px;
-      border: 1px solid var(--border);
-      background: white;
-      cursor: pointer;
-      font-weight: 600;
-      color: var(--muted);
-    }
-
-    .tab-btn.active {
-      background: var(--text);
-      color: white;
-      border-color: var(--text);
-    }
-
-    .tab-panel { display: none; }
-    .tab-panel.active { display: block; }
-
-    .chart-wrap {
-      position: relative;
-      min-height: 350px;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 14px;
-    }
-
-    th, td {
-      padding: 12px 10px;
-      border-bottom: 1px solid #e9eff6;
-      text-align: left;
-      vertical-align: top;
-    }
-
-    th {
-      color: var(--muted);
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      position: sticky;
-      top: 0;
-      background: white;
-    }
-
-    .table-scroll {
-      max-height: 520px;
-      overflow: auto;
-      border: 1px solid var(--border);
-      border-radius: 16px;
-    }
-
-    .amount-negative { color: var(--red); font-weight: 700; }
-    .amount-positive { color: var(--green); font-weight: 700; }
-
-    .mapping-grid {
-      display: grid;
-      grid-template-columns: repeat(5, minmax(0, 1fr));
-      gap: 12px;
-    }
-
-    .small {
-      font-size: 12px;
-      color: var(--muted);
-    }
-
-    .hidden { display: none !important; }
-
-    @media (max-width: 980px) {
-      .hero, .section-grid { grid-template-columns: 1fr; }
-      .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .mapping-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      h1 { font-size: 30px; }
-    }
-
-    @media (max-width: 640px) {
-      .grid-2, .grid-4, .mapping-grid { grid-template-columns: 1fr; }
-      .container { padding: 16px 12px 40px; }
-      h1 { font-size: 26px; }
-      .metric-value { font-size: 24px; }
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="hero">
-      <div>
-        <div class="pill">Personal Finance Upload Dashboard</div>
-        <h1>Upload transactions and instantly see spending, savings, and whether you are on track.</h1>
-        <div class="subtitle">
-          This version is plain HTML, CSS, and JavaScript, so it works on GitHub Pages as a single <code>index.html</code> file. Upload CSV or Excel exports, auto-categorize spend, and review savings progress against your goals.
-        </div>
-      </div>
-
-      <div class="card">
-        <h3 style="margin:0 0 8px;">Upload data</h3>
-        <div class="small" style="margin-bottom:14px;">CSV and Excel supported. PDF statements need separate parsing.</div>
-        <div class="upload-box">
-          <input id="fileInput" type="file" accept=".csv,.xlsx,.xls" class="hidden" />
-          <div style="font-size:14px;color:var(--muted);margin-bottom:14px;">Choose a transaction export from your bank or card.</div>
-          <button class="btn" id="chooseFileBtn">Choose file</button>
-          <div id="fileName" class="small" style="margin-top:12px;"></div>
-        </div>
-
-        <div class="grid-2" style="margin-top:14px;">
-          <div>
-            <label for="monthlyIncomeTarget">Monthly income target</label>
-            <input id="monthlyIncomeTarget" type="number" value="5500" />
-          </div>
-          <div>
-            <label for="monthlySavingsGoal">Monthly savings goal</label>
-            <input id="monthlySavingsGoal" type="number" value="1000" />
-          </div>
-        </div>
-
-        <div style="margin-top:14px;">
-          <label for="notes">Notes</label>
-          <textarea id="notes" placeholder="Optional assumptions or reminders"></textarea>
-        </div>
-      </div>
-    </div>
-
-    <div id="emptyState" class="card">
-      <h3 style="margin-top:0;">No transactions uploaded yet</h3>
-      <div class="subtitle" style="margin-top:8px;max-width:none;">
-        Start with a CSV or Excel file that includes transaction date, merchant or description, and either an amount column or separate debit and credit columns.
-      </div>
-    </div>
-
-    <div id="dashboard" class="hidden">
-      <div class="grid-4 metrics">
-        <div class="metric">
-          <div class="metric-title">Income</div>
-          <div class="metric-value" id="incomeValue">$0</div>
-          <div class="metric-tag green">Money in</div>
-        </div>
-        <div class="metric">
-          <div class="metric-title">Expenses</div>
-          <div class="metric-value" id="expensesValue">$0</div>
-          <div class="metric-tag red">Money out</div>
-        </div>
-        <div class="metric">
-          <div class="metric-title">Net savings</div>
-          <div class="metric-value" id="netSavingsValue">$0</div>
-          <div class="metric-tag blue">Income minus expenses</div>
-        </div>
-        <div class="metric">
-          <div class="metric-title">Goal status</div>
-          <div class="metric-value" id="goalStatusValue">-</div>
-          <div class="metric-tag purple" id="goalTag">Waiting for data</div>
-        </div>
-      </div>
-
-      <div class="section-grid">
-        <div class="card">
-          <h3 style="margin-top:0;">Auto insights</h3>
-          <div id="insightsList"></div>
-          <div id="notesBox" class="list-item hidden"></div>
-        </div>
-
-        <div class="card">
-          <h3 style="margin-top:0;">Column mapping</h3>
-          <div class="small" style="margin-bottom:12px;">Adjust this if your file uses different column names.</div>
-          <div class="mapping-grid">
-            <div>
-              <label>Date</label>
-              <select id="mapDate"></select>
-            </div>
-            <div>
-              <label>Description</label>
-              <select id="mapDescription"></select>
-            </div>
-            <div>
-              <label>Amount</label>
-              <select id="mapAmount"></select>
-            </div>
-            <div>
-              <label>Debit</label>
-              <select id="mapDebit"></select>
-            </div>
-            <div>
-              <label>Credit</label>
-              <select id="mapCredit"></select>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="tabs">
-        <button class="tab-btn active" data-tab="overview">Overview</button>
-        <button class="tab-btn" data-tab="transactions">Transactions</button>
-        <button class="tab-btn" data-tab="categories">Categories</button>
-        <button class="tab-btn" data-tab="monthly">Monthly trend</button>
-        <button class="tab-btn" id="exportBtn">Export categorized CSV</button>
-      </div>
-
-      <div id="tab-overview" class="tab-panel active">
-        <div class="grid-2">
-          <div class="card">
-            <h3 style="margin-top:0;">Spending by category</h3>
-            <div class="chart-wrap"><canvas id="pieChart"></canvas></div>
-          </div>
-          <div class="card">
-            <h3 style="margin-top:0;">Where money is going</h3>
-            <div id="categorySummary"></div>
-          </div>
-        </div>
-      </div>
-
-      <div id="tab-transactions" class="tab-panel">
-        <div class="card">
-          <h3 style="margin-top:0;">Normalized transactions</h3>
-          <div class="small" style="margin-bottom:14px;">Auto-categorized rows ready for review.</div>
-          <div class="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Description</th>
-                  <th>Category</th>
-                  <th style="text-align:right;">Amount</th>
-                </tr>
-              </thead>
-              <tbody id="transactionsBody"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      <div id="tab-categories" class="tab-panel">
-        <div class="card">
-          <h3 style="margin-top:0;">Category totals</h3>
-          <div class="chart-wrap"><canvas id="barChart"></canvas></div>
-        </div>
-      </div>
-
-      <div id="tab-monthly" class="tab-panel">
-        <div class="card">
-          <h3 style="margin-top:0;">Monthly income, expenses, and savings trend</h3>
-          <div class="chart-wrap"><canvas id="monthlyChart"></canvas></div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    const CATEGORY_RULES = [
-      { category: "Rent / Housing", keywords: ["rent", "apartment", "property", "lease", "landlord"] },
-      { category: "Groceries", keywords: ["costco", "walmart", "king soopers", "safeway", "trader joe", "whole foods", "target grocery"] },
-      { category: "Dining", keywords: ["restaurant", "cafe", "coffee", "starbucks", "doordash", "ubereats", "grubhub", "chipotle", "mcdonald", "panera"] },
-      { category: "Utilities", keywords: ["xcel", "electric", "water", "gas", "utility", "comcast", "xfinity", "internet"] },
-      { category: "Insurance", keywords: ["insurance", "lemonade", "geico", "progressive", "state farm"] },
-      { category: "Transportation", keywords: ["uber", "lyft", "metro", "parking", "toll", "shell", "chevron", "evgo", "xeal", "gas"] },
-      { category: "Travel", keywords: ["airbnb", "hilton", "hyatt", "priceline", "booking", "expedia", "airlines", "southwest", "united", "delta", "hawaiian"] },
-      { category: "Shopping", keywords: ["amazon", "nike", "zara", "macy", "sephora", "ulta", "best buy"] },
-      { category: "Subscriptions", keywords: ["netflix", "spotify", "youtube", "apple.com/bill", "google one", "hulu", "prime", "subscription"] },
-      { category: "Phone", keywords: ["boost mobile", "t-mobile", "verizon", "att", "at&t"] },
-      { category: "Healthcare", keywords: ["pharmacy", "walgreens", "cvs", "hospital", "clinic", "quest", "labcorp"] },
-      { category: "Income", keywords: ["payroll", "salary", "deposit", "direct dep", "refund", "bonus", "interest"] },
-    ];
-
-    const COLORS = [
-      "#3974ff", "#13a67b", "#ff9f43", "#7856ff", "#ff6384",
-      "#36a2eb", "#4bc0c0", "#9966ff", "#8bc34a", "#ffcd56"
-    ];
-
-    let rawRows = [];
-    let headers = [];
-    let mapping = { date: "", description: "", amount: "", debit: "", credit: "" };
-    let normalizedRows = [];
-    let pieChart, barChart, monthlyChart;
-
-    const fileInput = document.getElementById("fileInput");
-    const chooseFileBtn = document.getElementById("chooseFileBtn");
-    const fileNameEl = document.getElementById("fileName");
-    const emptyState = document.getElementById("emptyState");
-    const dashboard = document.getElementById("dashboard");
-    const insightsList = document.getElementById("insightsList");
-    const notesBox = document.getElementById("notesBox");
-
-    chooseFileBtn.addEventListener("click", () => fileInput.click());
-    fileInput.addEventListener("change", (e) => handleFile(e.target.files[0]));
-
-    document.querySelectorAll(".tab-btn[data-tab]").forEach(btn => {
-      btn.addEventListener("click", () => {
-        document.querySelectorAll(".tab-btn[data-tab]").forEach(b => b.classList.remove("active"));
-        document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
-        btn.classList.add("active");
-        document.getElementById(`tab-${btn.dataset.tab}`).classList.add("active");
-      });
-    });
-
-    document.getElementById("exportBtn").addEventListener("click", exportCsv);
-    document.getElementById("monthlyIncomeTarget").addEventListener("input", renderDashboard);
-    document.getElementById("monthlySavingsGoal").addEventListener("input", renderDashboard);
-    document.getElementById("notes").addEventListener("input", renderDashboard);
-
-    ["Date", "Description", "Amount", "Debit", "Credit"].forEach(name => {
-      document.getElementById(`map${name}`).addEventListener("change", () => {
-        mapping = {
-          date: document.getElementById("mapDate").value,
-          description: document.getElementById("mapDescription").value,
-          amount: document.getElementById("mapAmount").value,
-          debit: document.getElementById("mapDebit").value,
-          credit: document.getElementById("mapCredit").value,
-        };
-        normalizeRows();
-        renderDashboard();
-      });
-    });
-
-    function currency(n) {
-      return new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency: "USD",
-        maximumFractionDigits: 2
-      }).format(Number(n || 0));
-    }
-
-    function normalizeHeader(s) {
-      return String(s || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-    }
-
-    function inferColumns(headers) {
-      const normalized = headers.map(h => ({ raw: h, norm: normalizeHeader(h) }));
-      const pick = (patterns) => {
-        const found = normalized.find(h => patterns.some(p => h.norm.includes(p)));
-        return found ? found.raw : "";
-      };
-      return {
-        date: pick(["date", "posted", "transaction date"]),
-        description: pick(["description", "merchant", "details", "name", "memo", "transaction"]),
-        amount: pick(["amount", "transaction amount", "value"]),
-        debit: pick(["debit", "withdrawal", "money out", "expense"]),
-        credit: pick(["credit", "deposit", "money in", "income"]),
-      };
-    }
-
-    function parseAmount(value) {
-      if (value === null || value === undefined || value === "") return 0;
-      if (typeof value === "number") return value;
-      const cleaned = String(value)
-        .replace(/\$/g, "")
-        .replace(/,/g, "")
-        .replace(/\(/g, "-")
-        .replace(/\)/g, "")
-        .trim();
-      const parsed = Number(cleaned);
-      return Number.isFinite(parsed) ? parsed : 0;
-    }
-
-    function categorize(description, amount) {
-      const text = String(description || "").toLowerCase();
-      if (amount > 0) {
-        const incomeMatch = CATEGORY_RULES.find(rule => rule.category === "Income" && rule.keywords.some(k => text.includes(k)));
-        return incomeMatch ? "Income" : "Other Income";
-      }
-      const match = CATEGORY_RULES.find(rule => rule.category !== "Income" && rule.keywords.some(k => text.includes(k)));
-      return match ? match.category : "Uncategorized";
-    }
-
-    function monthKey(dateValue) {
-      const d = new Date(dateValue);
-      if (Number.isNaN(d.getTime())) return "Unknown";
-      return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
-    }
-
-    function handleFile(file) {
-      if (!file) return;
-      fileNameEl.textContent = `Loaded: ${file.name}`;
-      const ext = file.name.split(".").pop().toLowerCase();
-
-      if (ext === "csv") {
-        Papa.parse(file, {
-          header: true,
-          skipEmptyLines: true,
-          complete: (results) => {
-            rawRows = results.data || [];
-            headers = results.meta.fields || Object.keys(rawRows[0] || {});
-            mapping = inferColumns(headers);
-            populateMappingSelects();
-            normalizeRows();
-            renderDashboard();
-          }
-        });
-        return;
-      }
-
-      if (ext === "xlsx" || ext === "xls") {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-          const data = new Uint8Array(e.target.result);
-          const workbook = XLSX.read(data, { type: "array" });
-          const firstSheet = workbook.SheetNames[0];
-          const worksheet = workbook.Sheets[firstSheet];
-          rawRows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
-          headers = Object.keys(rawRows[0] || {});
-          mapping = inferColumns(headers);
-          populateMappingSelects();
-          normalizeRows();
-          renderDashboard();
-        };
-        reader.readAsArrayBuffer(file);
-        return;
-      }
-
-      alert("Please upload a CSV or Excel file.");
-    }
-
-    function populateMappingSelects() {
-      const fields = ["Date", "Description", "Amount", "Debit", "Credit"];
-      fields.forEach(field => {
-        const select = document.getElementById(`map${field}`);
-        const key = field.toLowerCase();
-        select.innerHTML = '<option value="">Not used</option>' + headers.map(h => `<option value="${escapeHtml(h)}">${escapeHtml(h)}</option>`).join("");
-        select.value = mapping[key] || "";
-      });
-    }
-
-    function normalizeRows() {
-      normalizedRows = rawRows.map((row, index) => {
-        const date = mapping.date ? row[mapping.date] : "";
-        const description = mapping.description ? row[mapping.description] : "";
-        let amount = 0;
-
-        if (mapping.amount) {
-          amount = parseAmount(row[mapping.amount]);
-        } else {
-          const debit = parseAmount(mapping.debit ? row[mapping.debit] : 0);
-          const credit = parseAmount(mapping.credit ? row[mapping.credit] : 0);
-          amount = credit - Math.abs(debit);
-        }
-
-        return {
-          id: index + 1,
-          date,
-          description: String(description || "").trim(),
-          amount,
-          category: categorize(description, amount),
-          month: monthKey(date)
-        };
-      }).filter(r => r.description || r.amount !== 0 || r.date);
-    }
-
-    function getCategoryData() {
-      const map = new Map();
-      normalizedRows.filter(r => r.amount < 0).forEach(r => {
-        map.set(r.category, (map.get(r.category) || 0) + Math.abs(r.amount));
-      });
-      return [...map.entries()].map(([name, value]) => ({ name, value: Number(value.toFixed(2)) })).sort((a, b) => b.value - a.value);
-    }
-
-    function getMonthlyData() {
-      const map = new Map();
-      normalizedRows.forEach(r => {
-        if (!map.has(r.month)) map.set(r.month, { month: r.month, income: 0, expenses: 0, savings: 0 });
-        const entry = map.get(r.month);
-        if (r.amount > 0) entry.income += r.amount;
-        if (r.amount < 0) entry.expenses += Math.abs(r.amount);
-        entry.savings = entry.income - entry.expenses;
-      });
-      return [...map.values()];
-    }
-
-    function renderDashboard() {
-      if (!normalizedRows.length) {
-        emptyState.classList.remove("hidden");
-        dashboard.classList.add("hidden");
-        return;
-      }
-
-      emptyState.classList.add("hidden");
-      dashboard.classList.remove("hidden");
-
-      const income = normalizedRows.filter(r => r.amount > 0).reduce((sum, r) => sum + r.amount, 0);
-      const expenses = normalizedRows.filter(r => r.amount < 0).reduce((sum, r) => sum + Math.abs(r.amount), 0);
-      const netSavings = income - expenses;
-      const savingsGoal = Number(document.getElementById("monthlySavingsGoal").value || 0);
-      const incomeTarget = Number(document.getElementById("monthlyIncomeTarget").value || 0);
-      const notes = document.getElementById("notes").value.trim();
-      const categoryData = getCategoryData();
-      const monthlyData = getMonthlyData();
-      const avgIncome = monthlyData.length ? monthlyData.reduce((sum, m) => sum + m.income, 0) / monthlyData.length : 0;
-
-      document.getElementById("incomeValue").textContent = currency(income);
-      document.getElementById("expensesValue").textContent = currency(expenses);
-      document.getElementById("netSavingsValue").textContent = currency(netSavings);
-      document.getElementById("goalStatusValue").textContent = netSavings >= savingsGoal ? "On track" : "Behind";
-      document.getElementById("goalTag").textContent = `Goal: ${currency(savingsGoal)}`;
-      document.getElementById("goalTag").className = `metric-tag ${netSavings >= savingsGoal ? "green" : "red"}`;
-
-      const insights = [];
-      if (categoryData[0]) insights.push(`Top spend category: ${categoryData[0].name} at ${currency(categoryData[0].value)}.`);
-      insights.push(`Net savings from uploaded data: ${currency(netSavings)}.`);
-      insights.push(netSavings >= savingsGoal
-        ? `You are on track against your savings goal of ${currency(savingsGoal)}.`
-        : `You are behind your savings goal by ${currency(Math.max(savingsGoal - netSavings, 0))}.`);
-      const subCount = normalizedRows.filter(r => r.category === "Subscriptions").length;
-      insights.push(subCount ? `Detected ${subCount} subscription-related transaction${subCount > 1 ? "s" : ""}.` : "No subscription transactions detected from current rules.");
-      if (incomeTarget > 0) insights.push(`Average monthly income in the file is ${currency(avgIncome)} versus a target of ${currency(incomeTarget)}.`);
-
-      insightsList.innerHTML = insights.map(text => `<div class="list-item">${escapeHtml(text)}</div>`).join("");
-      if (notes) {
-        notesBox.classList.remove("hidden");
-        notesBox.textContent = `Note: ${notes}`;
-      } else {
-        notesBox.classList.add("hidden");
-        notesBox.textContent = "";
-      }
-
-      const categorySummary = document.getElementById("categorySummary");
-      categorySummary.innerHTML = categoryData.slice(0, 8).map((item, i) => `
-        <div class="list-item" style="display:flex;justify-content:space-between;gap:12px;align-items:center;">
-          <div style="display:flex;align-items:center;gap:10px;">
-            <span style="width:12px;height:12px;border-radius:999px;background:${COLORS[i % COLORS.length]};display:inline-block;"></span>
-            <span>${escapeHtml(item.name)}</span>
-          </div>
-          <strong>${currency(item.value)}</strong>
-        </div>
-      `).join("");
-
-      const tbody = document.getElementById("transactionsBody");
-      tbody.innerHTML = normalizedRows.slice(0, 400).map(row => `
-        <tr>
-          <td>${escapeHtml(String(row.date || "-"))}</td>
-          <td>${escapeHtml(row.description || "-")}</td>
-          <td>${escapeHtml(row.category)}</td>
-          <td style="text-align:right;" class="${row.amount < 0 ? "amount-negative" : "amount-positive"}">${currency(row.amount)}</td>
-        </tr>
-      `).join("");
-
-      renderPieChart(categoryData);
-      renderBarChart(categoryData);
-      renderMonthlyChart(monthlyData);
-    }
-
-    function renderPieChart(data) {
-      if (pieChart) pieChart.destroy();
-      pieChart = new Chart(document.getElementById("pieChart"), {
-        type: "doughnut",
-        data: {
-          labels: data.map(d => d.name),
-          datasets: [{ data: data.map(d => d.value), backgroundColor: COLORS, borderWidth: 0 }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { position: "bottom" },
-            tooltip: { callbacks: { label: ctx => `${ctx.label}: ${currency(ctx.parsed)}` } }
-          }
-        }
-      });
-    }
-
-    function renderBarChart(data) {
-      if (barChart) barChart.destroy();
-      barChart = new Chart(document.getElementById("barChart"), {
-        type: "bar",
-        data: {
-          labels: data.map(d => d.name),
-          datasets: [{ label: "Expenses", data: data.map(d => d.value), backgroundColor: "#3974ff", borderRadius: 10 }]
-        },
-        options: {
-          indexAxis: "y",
-          responsive: true,
-          maintainAspectRatio: false,
-          scales: { x: { ticks: { callback: value => `$${value}` } } },
-          plugins: {
-            legend: { display: false },
-            tooltip: { callbacks: { label: ctx => currency(ctx.parsed.x) } }
-          }
-        }
-      });
-    }
-
-    function renderMonthlyChart(data) {
-      if (monthlyChart) monthlyChart.destroy();
-      monthlyChart = new Chart(document.getElementById("monthlyChart"), {
-        type: "bar",
-        data: {
-          labels: data.map(d => d.month),
-          datasets: [
-            { label: "Income", data: data.map(d => d.income), backgroundColor: "#13a67b", borderRadius: 8 },
-            { label: "Expenses", data: data.map(d => d.expenses), backgroundColor: "#cc435c", borderRadius: 8 },
-            { label: "Savings", data: data.map(d => d.savings), backgroundColor: "#7856ff", borderRadius: 8 }
-          ]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${currency(ctx.parsed.y)}` } }
-          },
-          scales: { y: { ticks: { callback: value => `$${value}` } } }
-        }
-      });
-    }
-
-    function exportCsv() {
-      if (!normalizedRows.length) return;
-      const headers = ["date", "description", "category", "amount", "month"];
-      const lines = [headers.join(",")].concat(
-        normalizedRows.map(row => headers.map(h => csvSafe(row[h])).join(","))
-      );
-      const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = "categorized_transactions.csv";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
-
-    function csvSafe(value) {
-      const s = String(value ?? "");
-      return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
-    }
-
-    function escapeHtml(str) {
-      return String(str)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-    }
-  </script>
-</body>
-</html>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Spending Compass Pro — Personal Finance Tracker</title><style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;color:#172338;background:#f4f7fb}*{box-sizing:border-box}body{margin:0}.wrap{max-width:1250px;margin:auto;padding:28px 22px 70px}.header{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}.sub{color:#69788d;font-size:13px}.header h1{margin:0;font-size:29px;letter-spacing:-1px}.pill{border:1px solid #ccd8e8;border-radius:18px;padding:7px 12px;background:white;font-size:12px;color:#3d526d}.tabs{display:flex;gap:8px;overflow:auto;margin:26px 0}.tabs button,.button{border:1px solid #cbd6e7;background:white;color:#334761;padding:10px 17px;border-radius:10px;cursor:pointer;font-weight:650}.tabs button.active,.button.primary{background:#183a70;color:#fff;border-color:#183a70}.topline{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:18px 0}.card,.panel{background:white;border:1px solid #dde5f0;border-radius:16px;padding:20px;box-shadow:0 3px 10px #14315b07}.card .number{font-size:26px;font-weight:760;margin:8px 0;letter-spacing:-1px}.card .label{font-size:13px;color:#65738a}.card .note{font-size:12px;color:#8491a3}.row{display:grid;grid-template-columns:1.5fr 1fr;gap:16px;margin-top:16px}.panel h2{margin:0 0 8px;font-size:17px}.chart{display:flex;align-items:end;gap:9px;height:205px;padding:26px 4px 3px;border-bottom:1px solid #e7edf6}.chart .barwrap{flex:1;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;min-width:0}.chart .bar{width:65%;max-width:43px;background:#668ad1;border-radius:5px 5px 0 0;min-height:2px}.chart .bar.good{background:#25a184}.chartlabel{font-size:11px;color:#60738f;padding-top:7px}.barval{font-size:10px;color:#728096;white-space:nowrap}.progress{height:9px;background:#eaf0f7;border-radius:9px;overflow:hidden;margin-top:8px}.progress i{display:block;height:100%;background:#2f987b;border-radius:8px}.progress i.warn{background:#e8a449}.progress i.bad{background:#e16c6c}.budgetrow{margin:16px 0}.budgethead{display:flex;justify-content:space-between;align-items:baseline;gap:8px}.small{font-size:12px;color:#708197}.danger{color:#be4148}.goodtext{color:#138368}.input,select{border:1px solid #cfdaeb;border-radius:8px;padding:9px;background:#fff;color:#24314a;max-width:100%}.formgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.field label{display:block;font-size:12px;color:#62728a;margin:0 0 6px}.field input,.field select{width:100%}table{width:100%;border-collapse:collapse;font-size:13px}td,th{text-align:left;border-bottom:1px solid #ecf0f6;padding:11px 9px}th{color:#728198;font-size:11px;text-transform:uppercase;letter-spacing:.05em}td:nth-child(3),th:nth-child(3){text-align:right}button:disabled{opacity:.5;cursor:not-allowed}.tag{display:inline-block;padding:4px 9px;border-radius:6px;font-size:11px;background:#eef3f9;color:#4c607d}.hint{background:#f1f5fb;border-radius:10px;padding:12px;font-size:13px;color:#4b5d73;line-height:1.5}.drop{border:2px dashed #b8c9df;border-radius:13px;padding:28px;text-align:center;background:#fafcff}.drop input{margin:12px 0}.budgetedit{display:grid;grid-template-columns:1fr 135px;gap:8px;margin:10px 0;align-items:center}.budgetedit input{text-align:right}.hidden{display:none}.status{margin:13px 0;white-space:pre-line;color:#51647b;font-size:13px}.right{text-align:right}.muted{color:#8997aa}.full{grid-column:1/-1}@media(max-width:900px){.cards{grid-template-columns:repeat(2,1fr)}.row{grid-template-columns:1fr}}@media(max-width:570px){.cards,.formgrid{grid-template-columns:1fr}.wrap{padding:15px}.card .number{font-size:24px}table{font-size:11px}.panel{padding:14px}}
+.breakclick{width:100%;display:flex;justify-content:space-between;align-items:center;gap:15px;text-align:left;border:0;border-bottom:1px solid #edf1f5;padding:15px 9px;background:white;color:#24314a;cursor:pointer;font-size:14px}.breakclick:hover,.breakclick.selected{background:#f1f6ff}.breakclick .sub{display:block;margin-top:4px}#transferSummary{grid-template-columns:repeat(3,1fr)}@media(max-width:700px){#transferSummary{grid-template-columns:1fr}} </style></head><body><div class="wrap"><div class="header"><div><h1>Spending Compass <span style='color:#438d86'>Pro</span></h1><div class="sub">Personal expense intelligence • Local-first</div></div><div class="pill" id="sourceBadge">2026 overview • 4 source exports</div></div><nav class="tabs"><button data-tab="overview" class="active">Overview</button><button data-tab="breakdown">Explore spending</button><button data-tab="transactions">All accounts</button><button data-tab="transfers">Transfers & Reconciliation</button><button data-tab="budgets">Budgets & Alerts</button><button data-tab="imports">Import & Settings</button></nav>
+<section id="overview"><div class="topline"><div><h2 style="margin:0">Financial health</h2><div class="sub">Net purchases count once; repayments and own-account transfers are excluded.</div></div><select id="monthSelect" class="input"></select></div><div id="cards" class="cards"></div><div class="row"><article class="panel"><h2>Spend versus take-home pay</h2><div class="sub">Monthly values, using imported detail where available</div><div class="chart" id="barChart"></div><div class="small" style="padding-top:23px">Blue bars = card and direct expense records. Green indicates below your selected monthly limit.</div></article><article class="panel"><h2>Are you overdoing it?</h2><div id="health"></div><div class="hint" style="margin-top:18px">Budget usage is an estimate based on available records. Transfers to savings are excluded. Missing account exports can understate spending.</div></article></div><div class="row"><article class="panel"><h2>Spending categories</h2><div class="sub">Automatically assigned; click Transactions to correct any category</div><div id="categories"></div></article><article class="panel"><h2>What deserves attention</h2><div id="insights"></div></article></div></section>
+<section id="breakdown" class="hidden"><div class="panel"><div class="topline"><div><h2>Every dollar, broken down</h2><div class="sub">Explore merchant, category, subcategory and account totals. Refunds offset original spending.</div></div><div><select id="breakType" class="input"><option value="subcategory">By subcategory</option><option value="merchant">By merchant</option><option value="category">By category</option><option value="account">By account</option></select></div></div><div style="margin:16px 0;padding:16px;border:2px solid #b6c9ed;border-radius:16px;background:#f5f8ff"><h3 style="margin:0 0 6px">Fund Transfers — Zelle, Venmo, Western Union, Remitly</h3><p class="sub" style="margin:0 0 12px">Track money sent and received separately from expenses. Select to view every month and transaction.</p><div id="fundBreak"></div></div><div id="breakSummary" class="cards"></div><div id="breakRows" style="margin-top:14px"></div></div><div class="panel" style="margin-top:16px"><h2>Vehicle costs</h2><div class="sub">Car payments are separate from fuel, charging, rental cars, insurance and parking.</div><div id="vehicleRows"></div></div></section>
+<section id="transactions" class="hidden"><div class="panel"><div class="topline"><div><h2>Transaction ledger</h2><div class="sub">Change category and transaction type to improve accuracy</div></div><div style="display:flex;gap:8px;flex-wrap:wrap"><select class="input" id="accountFilter"><option value="all">All accounts</option></select><select class="input" id="categoryFilter"><option value="all">All categories</option></select><input id="search" class="input" placeholder="Search merchant, amount or description"></div></div><div style="overflow:auto;max-height:620px;margin-top:12px"><table><thead><tr><th>Date</th><th>Merchant / source</th><th>Amount</th><th>Category</th><th>Type</th></tr></thead><tbody id="txRows"></tbody></table></div><p class="small" id="txCount"></p></div></section>
+<section id="transfers" class="hidden"><div class="panel"><h2>Transfers & reconciliation</h2><p class="sub">Own-account movements and card repayments do not count as new spending. Zelle, Venmo, Western Union and Remitly are categorized as Fund Transfers and excluded from spending. You can reclassify an individual payment as an expense.</p><div id="transferSummary" class="cards"></div><div class="topline"><select id="transferFilter" class="input"><option value="all">All money movements</option><option value="Unclassified transfer">Needs review</option><option value="Fund transfer">Fund transfers</option><option value="Own-account transfer">Own transfers</option><option value="Credit-card payment">Card payments</option></select><span class="small">Change transaction type to expense when the payment actually bought goods/services.</span></div><div style="overflow:auto;max-height:650px"><table><thead><tr><th>Date</th><th>Movement / account</th><th>Amount</th><th>Classification</th><th>Review</th></tr></thead><tbody id="transferRows"></tbody></table></div></div></section><section id="drilldown" class="hidden"><div class="panel"><button class="button" id="backBreak">← Back to spending</button><h2 id="detailTitle" style="margin-top:20px"></h2><p id="detailSubtitle" class="sub"></p><div id="detailCards" class="cards"></div><h3>Monthly spending — click a month for individual transactions</h3><div id="detailMonths"></div><div id="detailTransactions"></div></div></section><section id="budgets" class="hidden"><div class="row"><div class="panel"><h2>Monthly category limits</h2><p class="small">Set your own limits. These are starting defaults, not claims about what you should spend.</p><div id="budgetFields"></div><button class="button primary" id="saveBudget">Save limits</button></div><div class="panel"><h2>Budget rules</h2><div class="field"><label>Overall monthly spending limit ($)</label><input type="number" class="input" id="totalLimit" min="0" step="25"></div><div class="field" style="margin-top:15px"><label>Monthly income target ($)</label><input type="number" class="input" id="incomeTarget" min="0" step="25"></div><div class="field" style="margin-top:15px"><label>Reported savings balance ($)</label><input type="number" class="input" id="savingsBalance" min="0" step="1"></div><button class="button primary" id="saveSettings" style="margin-top:14px">Save settings</button><div class="hint" style="margin-top:18px">At 80% of a budget, you'll see an approaching-limit warning. At 100%, you'll see an over-budget warning. Alerts appear inside the app, not as push notifications.</div></div></div></section>
+<section id="imports" class="hidden"><div class="row"><div class="panel"><h2>Import bank and card statements</h2><div class="drop"><strong>Choose CSV or Excel (.xlsx) statements</strong><br><span class="small">Supports Chase checking, Chase credit cards, Capital One and Amex activity formats</span><br><input id="fileImport" type="file" accept=".csv,.xlsx,.xls,text/csv" multiple></div><div class="status" id="importStatus">Your files stay inside this browser. No financial data is uploaded to a server.</div><button class="button" id="clearData">Clear imported transactions</button><button class="button" id="exportData">Export your categorized ledger as CSV</button><button class="button" id="repairCategories">Recheck imported categories</button><p class="small">Amex activity.xlsx can be imported directly. Password-protected XLSX and older .xls files are not supported.</p></div><div class="panel"><h2>Data quality rules</h2><p>Credit-card repayments are classified as <b>Payments</b>, not spending. Money moved between your own accounts is classified as <b>Transfers</b>.</p><p>Refunds offset purchases. Tax refunds and investment credits are not counted as salary. Zelle, Venmo, Western Union and Remitly are marked as <b>Fund Transfers</b> and excluded from spending by default. Reclassify individual transactions as expenses when appropriate.</p><p>Two AT&T $699.89 transactions are retained as separate one-time phone purchases. Nissan auto lease is tracked as Car Payments, not Travel or Fuel. Savings ($48,734) is user-reported, not bank-synced.</p><div class="hint">The built-in overview provides previously calculated monthly summary amounts. After you import your raw statements, the app switches to transaction-based analysis rather than adding the imported data on top of the summary.</div></div></div></section></div>
+<script>
+const KEY='spending-compass-v1'; const base={savings:0,incomeTarget:0,totalLimit:4500,budgets:{'Rent':2000,'Housing':2000,'Restaurants & Cafes':250,'Uber Eats':140,'DoorDash':100,'Work Cafeteria':90,'Groceries':450,'Shopping':300,'Airfare':250,'Hotels & Lodging':250,'Other Travel':150,'Car Payments':225,'Gas':100,'EV Charging':100,'Rental Cars':150,'Parking & Tolls':80,'Rideshare':100,'Bills & Utilities':500,'Phones & Tech':150,'Car Insurance':150,'Vehicle Registration & Taxes':100,'Personal & Health':200,'Subscriptions':80,'Other':300,'Fees & Interest':30,'Rewards & statement credits':0},rows:[]};let state;try{state={...base,...JSON.parse(localStorage.getItem(KEY)||'{}')}}catch{state=structuredClone(base)};if(!state.budgets)state.budgets={...base.budgets};
+const seed={"01":{pay:6316.55,card:699.38,housing:1944.58,auto:198.91,utility:101},"02":{pay:6566.54,card:5689.23,housing:1912.16,auto:198.91,utility:101},"03":{pay:6566.55,card:-361.76,housing:0,auto:198.91,utility:101},"04":{pay:6721.72,card:11.56,housing:1838.39,auto:198.91,utility:101},"05":{pay:10302.59,card:1089.78,housing:1898.45,auto:198.91,utility:100},"06":{pay:6868.41,card:1290.75,housing:1890.91,auto:198.91,utility:100},"07":{pay:6868.39,card:1385.75,housing:1714.09,auto:198.91,utility:100},"08":{pay:6868.40,card:4381.87,housing:1726.44,auto:198.91,utility:95},"09":{pay:6868.40,card:919.88,housing:1973.20,auto:198.91,utility:95},"10":{pay:9994.24,card:627.80,housing:0,auto:198.91,utility:77.44}};
+const money=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:2}).format(n||0);const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const save=()=>localStorage.setItem(KEY,JSON.stringify(state));let month='all',tab='overview';const months=['01','02','03','04','05','06','07','08','09','10','11','12'];const mLabel=m=>new Date(2026,+m-1,1).toLocaleDateString('en-US',{month:'short'});
+function parseCSV(s){const out=[];let row=[],v='',quote=false;for(let i=0;i<s.length;i++){let c=s[i];if(c==='"'){if(quote&&s[i+1]==='"'){v+='"';i++}else quote=!quote}else if(c===','&&!quote){row.push(v);v=''}else if((c==='\r'||c==='\n')&&!quote){if(c==='\r'&&s[i+1]==='\n')i++;row.push(v);if(row.some(Boolean))out.push(row);row=[];v=''}else v+=c}if(row.length||v){row.push(v);out.push(row)}return out}
+
+async function parseXLSX(file){
+ const buf=await file.arrayBuffer(), view=new DataView(buf), decoder=new TextDecoder();
+ let end=-1; for(let i=buf.byteLength-22;i>=Math.max(0,buf.byteLength-65557);i--)if(view.getUint32(i,true)===0x06054b50){end=i;break}
+ if(end<0)throw Error('Not an XLSX file');
+ const entries=new Map(), count=view.getUint16(end+10,true);let off=view.getUint32(end+16,true);
+ for(let i=0;i<count;i++){if(view.getUint32(off,true)!==0x02014b50)break;
+  let method=view.getUint16(off+10,true),size=view.getUint32(off+20,true),nl=view.getUint16(off+28,true),ex=view.getUint16(off+30,true),cl=view.getUint16(off+32,true),pos=view.getUint32(off+42,true);
+  let name=decoder.decode(new Uint8Array(buf,off+46,nl));entries.set(name,{method,size,pos});off+=46+nl+ex+cl;}
+ async function get(name){let e=entries.get(name);if(!e)return null;let start=e.pos+30+view.getUint16(e.pos+26,true)+view.getUint16(e.pos+28,true);
+ let bytes=new Uint8Array(buf,start,e.size);if(e.method===0)return decoder.decode(bytes);
+ if(e.method!==8||typeof DecompressionStream==='undefined')throw Error('Excel decompression unavailable in this browser');
+ return decoder.decode(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());}
+ const xml=txt=>new DOMParser().parseFromString(txt,'application/xml');
+ let shared=[];let ss=await get('xl/sharedStrings.xml');if(ss){let doc=xml(ss);shared=[...doc.getElementsByTagName('si')].map(si=>[...si.getElementsByTagName('t')].map(t=>t.textContent).join(''));}
+ let files=[...entries.keys()].filter(k=>/^xl\/worksheets\/sheet\d+\.xml$/.test(k)).sort((a,b)=>Number(a.match(/sheet(\d+)/)[1])-Number(b.match(/sheet(\d+)/)[1]));
+ for(const name of files){let raw=await get(name);let doc=xml(raw),rows=[];
+  for(const row of [...doc.getElementsByTagName('row')]){let arr=[];for(const cell of [...row.getElementsByTagName('c')]){let ref=cell.getAttribute('r')||'A1',letters=(ref.match(/^[A-Z]+/)||['A'])[0],col=0;for(const c of letters)col=col*26+c.charCodeAt(0)-64;col--;let v=cell.getElementsByTagName('v')[0]?.textContent||'';if(cell.getAttribute('t')==='s')v=shared[Number(v)]||'';if(cell.getAttribute('t')==='inlineStr')v=[...cell.getElementsByTagName('t')].map(x=>x.textContent).join('');arr[col]=v;}if(arr.some(Boolean))rows.push(Array.from({length:arr.length},(_,i)=>arr[i]||''));}
+  if(rows.some(r=>r.includes('Extended Details')&&r.includes('Description')))return rows;
+ }
+ throw Error('No recognized Amex transaction worksheet');}
+
+function ISO(s){s=String(s||'').trim();if(/^\d{4}-\d\d-\d\d$/.test(s))return s;let v=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);return v?`${v[3]}-${v[1].padStart(2,'0')}-${v[2].padStart(2,'0')}`:null}
+function classify(desc,category,source,type){let d=String(desc||'').toUpperCase(),c=String(category||'').toUpperCase(),t=String(type||'').toUpperCase();
+if(source==='checking'&&/PAYMENT TO CHASE|CHASE CREDIT CRD|CAPITAL ONE.*CRCARD|AMERICAN EXPRESS ACH/.test(d))return ['Payments','Credit-card payment'];
+if(/PAYMENT - THANK|AUTOPAY PAYMENT|MOBILE PAYMENT - THANK|PAYMENT THANK YOU|CAPITAL ONE (AUTOPAY|MOBILE) PYMT|^AUTOMATIC PAYMENT/.test(d)||t==='PAYMENT')return ['Payments','Credit-card payment'];
+if(/ONLINE TRANSFER|TRANSFER.*AMEX REWARDS|CAPITAL ONE.*TRANSFER/.test(d))return ['Transfers','Own-account transfer'];
+if(/PAYROLL/.test(d))return ['Income','Payroll'];
+if(/IRS.*TAX REF|CO DEPT REVENUE.*TAX|ROBINHOOD.*CREDITS/.test(d))return ['Other inflow','Other inflow'];
+if(/ZELLE|WESTERN UNION|REMITLY|RMTLY|VENMO/.test(d))return ['Fund Transfers','Fund transfer'];
+if(/WITHDRAWAL/.test(d))return ['Review','Unclassified transfer'];
+if(/YOUR CASH REWARD|ANNUAL HOTEL CREDIT|OFFER:TURO/.test(d))return ['Rewards & statement credits','Other inflow'];
+if(/PURCHASE ADJUSTMENT/.test(d))return ['Professional Services','Refund'];
+if(/BILT.*(RENT|HOUSING)|BILT PAYMENT/.test(d))return ['Rent','Expense'];
+
+if(/CO MOTOR VEHICLE SERVICE|COLORADO.*(MOTOR VEHICLE|REGISTRATION)|\bDMV\b/.test(d))return ['Vehicle Registration & Taxes','Expense'];
+if(/NISSAN.*AUTO LEASE|CAR PAYMENT|AUTO LOAN/.test(d))return ['Car Payments','Expense'];
+if(/ATT\* BILL PAYMENT/.test(d))return ['Phones & Tech','Expense'];
+if(/LEMONADE-METROMILE|PROG DIRECT|AUTO INSURANCE/.test(d))return ['Car Insurance','Expense'];
+if(/XCEL|COMCAST|BOOST MOBILE|LEMONADE/.test(d))return ['Bills & Utilities','Expense'];
+if(/FEE|INTEREST/.test(c)||/INTEREST CHARGE|MEMBERSHIP FEE|OFFICIAL CHECKS CHARGE/.test(d)||t==='FEE')return ['Fees & Interest','Expense'];
+if(/NETFLIX|APPLE.COM\/BILL/.test(d))return ['Subscriptions','Expense'];
+if(/UBER.*EATS/.test(d))return ['Uber Eats','Expense'];
+if(/DOORDASH|DD \*/.test(d))return ['DoorDash','Expense'];
+if(/DISH TV RIVER|DISH TV CAFE/.test(d))return ['Work Cafeteria','Expense'];
+if(/COSTCO GAS|SAFEWAY FUEL|SHELL|MAVERIK|\bFUEL\b/.test(d))return ['Gas','Expense'];
+if(/COSTCO/.test(d))return ['Groceries','Expense'];
+if(/WALMART|WAL-MART|WM SUPERCENTER/.test(d))return ['Groceries','Expense'];
+if(/KONARK|KING SOOPER|SAFEWAY|GROC|SUPERMARKET|ISLAND COUNTRY MKTS/.test(d+' '+c))return ['Groceries','Expense'];
+if(/LUFTHANSA|FRONTIER|SOUTHWES|ALASKA AIR|AIRLINE|AIRFARE|AIR TRANSPORT/.test(d+' '+c))return ['Airfare','Expense'];
+if(/AIRBNB|HOTEL|HYATT|DOUBLETREE|GRDNS AT WEST MAUI|LODGING/.test(d+' '+c))return ['Hotels & Lodging','Expense'];
+if(/SIXT|TURO|AVIS|PAYLESS CAR|RENTAL CAR|CAR RENTAL/.test(d+' '+c))return ['Rental Cars','Expense'];
+if(/CHARGING|ELECTRIFY|EVGO|XEAL EV|NYX\*/.test(d))return ['EV Charging','Expense'];
+if(/SHELL|MAVERIK|COSTCO GAS|SAFEWAY FUEL|FUEL|\bGAS\b/.test(d+' '+c))return ['Gas','Expense'];
+if(/PARKWHIZ|SPOTHERO|PARKING|WAY.COM|PMC - PAID/.test(d+' '+c))return ['Parking & Tolls','Expense'];
+if(/LYFT|UBER \*STANDARD|UBER.*TRIP/.test(d))return ['Rideshare','Expense'];
+if(/TRAVEL|PRICELN|LE TRAVENUES|EHAWAII|VACATION/.test(d+' '+c))return ['Other Travel','Expense'];
+if(/CHIPOTLE|DOMINO|RESTAURANT|MCDONALD|CAFE|SUBWAY|PIZZA|BURGER|BAWARCHI|FOOD & DRINK|PALENQUE|BAKERY|TST\*/.test(d+' '+c))return ['Restaurants & Cafes','Expense'];
+if(/NAILS|BARBER|CLIPS|HEALTH|WELLNESS|MEDICAL/.test(d+' '+c))return ['Personal & Health','Expense'];
+if(/SHOPPING|MERCHANDISE|RETAIL|SUPPLIES|AMAZON|SHEIN|TARGET|DOLLAR TREE/.test(d+' '+c))return ['Shopping','Expense'];return ['Other','Expense']}
+function topGroup(cat){if(['Uber Eats','DoorDash','Work Cafeteria','Restaurants & Cafes'].includes(cat))return 'Food & dining';if(['Costco','Walmart','Groceries'].includes(cat))return 'Groceries & stores';if(['Airfare','Hotels & Lodging','Rental Cars','Other Travel'].includes(cat))return 'Travel';if(['Car Payments','Gas','EV Charging','Parking & Tolls','Rideshare','Car Insurance','Vehicle Registration & Taxes'].includes(cat))return 'Vehicle & transport';return cat}
+function merchantName(x){let d=x.desc.replace(/&amp;/g,'&').replace(/^AplPay /i,'').trim();if(/UBER.*EATS/i.test(d))return 'Uber Eats';if(/DOORDASH|DD \*/i.test(d))return 'DoorDash';if(/COSTCO/i.test(d))return /GAS|FUEL/i.test(d)?'Costco Fuel':'Costco';if(/WALMART|WAL-MART|WM SUPERCENTER/i.test(d))return 'Walmart';if(/DISH TV RIVER|DISH TV CAFE/i.test(d))return 'Work cafeteria';if(/NISSAN.*AUTO LEASE/i.test(d))return 'Nissan auto lease';if(/KONARK/i.test(d))return 'Konark Grocers';if(/LUFTHANSA/i.test(d))return 'Lufthansa';if(/AIRBNB/i.test(d))return 'Airbnb';return d.replace(/\s+\d{5,}.*$/,'').slice(0,45)}
+function importRows(parsed,filename){if(parsed.some(r=>r.includes('Date')&&r.includes('Description')&&r.includes('Extended Details'))){let hdr=parsed.findIndex(r=>r.includes('Date')&&r.includes('Description')&&r.includes('Extended Details'));let start=parsed[hdr].findIndex(x=>x==='Date');parsed=[parsed[hdr].slice(start),...parsed.slice(hdr+1).filter(r=>/^\d{1,2}\/\d{1,2}\/2026$/.test(r[start])).map(r=>r.slice(start))]}const head=parsed[0]?.map(x=>x.toLowerCase().trim())||[];const has=x=>head.includes(x);let source;if(has('details')&&has('posting date'))source='checking';else if(has('transaction date')&&has('post date')&&has('type'))source='chasecard';else if(has('card no.')&&has('debit'))source='capitalone';else if(has('date')&&has('extended details')&&has('amount'))source='amex';else throw Error('Unrecognized headers. Please export the original bank CSV.');let rows=[];const index=x=>head.indexOf(x);for(const cells of parsed.slice(1)){let date,desc,amount,cat='',t='';if(source==='checking'){date=ISO(cells[index('posting date')]);desc=cells[index('description')];amount=Number(cells[index('amount')]);t=cells[index('type')]}if(source==='chasecard'){date=ISO(cells[index('post date')]);desc=cells[index('description')];amount=-Number(cells[index('amount')]);cat=cells[index('category')];t=cells[index('type')]}if(source==='capitalone'){date=ISO(cells[index('posted date')]);desc=cells[index('description')];amount=Number(cells[index('debit')]||0)-Number(cells[index('credit')]||0);cat=cells[index('category')];t=cat}if(source==='amex'){date=ISO(cells[index('date')]);desc=cells[index('description')];amount=Number(cells[index('amount')]);cat=cells[index('category')]}if(!date||!Number.isFinite(amount)||!desc)continue;let [category,type]=classify(desc,cat,source,t);if(source==='chasecard'&&t==='Return')type='Refund';if(source==='chasecard'&&t==='Adjustment'&&type==='Expense')type='Refund';if(source==='amex'&&amount<0&&type==='Expense')type='Refund';if(source==='capitalone'&&cat==='Payment/Credit')type='Credit-card payment',category='Payments';if(source==='checking'&&amount>0&&!['Payroll','Other inflow','Own-account transfer','Unclassified transfer','Fund transfer'].includes(type)){category='Other inflow';type='Other inflow'}const id=[source,date,desc,amount].join('|');rows.push({id,date,desc,amount,category,type,source:filename})}return rows}
+function tx(){return state.rows.filter(x=>x.date.startsWith('2026')&&(month==='all'||x.date.slice(5,7)===month))}function isExpense(x){return x.type==='Expense'||x.type==='Refund'}function getSpending(x){return normalizedExpenseAmount(x)}function normalizedExpenseAmount(x){if(!isExpense(x))return 0;const a=Number(x.amount)||0;const checking=/checking|3697/i.test(x.source||'');if(x.type==='Refund')return -Math.abs(a);return checking?Math.abs(a):a}function stats(m){if(!state.rows.length){let d=m==='all'?Object.values(seed).reduce((a,x)=>({pay:a.pay+x.pay,card:a.card+x.card,housing:a.housing+x.housing,auto:a.auto+x.auto,utility:a.utility+x.utility}),{pay:0,card:0,housing:0,auto:0,utility:0}):seed[m]||{pay:0,card:0,housing:0,auto:0,utility:0};return {income:d.pay,spent:d.card+d.housing+d.auto+d.utility,cards:d.card,rows:[],limited:true}}let rows=state.rows.filter(x=>x.date.startsWith('2026')&&(m==='all'||x.date.slice(5,7)===m)),spent=rows.filter(isExpense).reduce((n,x)=>n+getSpending(x),0),cards=rows.filter(x=>isExpense(x)&&!/checking|3697/i.test(x.source)).reduce((n,x)=>n+getSpending(x),0),income=rows.filter(x=>x.type==='Payroll').reduce((n,x)=>n+x.amount,0);return {income,spent,cards,rows,limited:false}}
+let detailKey=null,detailDimension='subcategory',detailMonth='all';function showTab(name){tab=name;document.querySelectorAll('section').forEach(v=>v.classList.toggle('hidden',v.id!==name));document.querySelectorAll('[data-tab]').forEach(v=>v.classList.toggle('active',v.dataset.tab===name));}
+function draw(){document.getElementById('sourceBadge').textContent=state.rows.length?`${state.rows.length} imported transactions • stored in this browser`:'2026 baseline • 4 exported accounts';let s=stats(month),limit=state.totalLimit*(month==='all'?10:1),diff=limit-s.spent;document.getElementById('cards').innerHTML=[['Payroll',money(s.income),s.limited?'Observed 2026 payroll':'Identified payroll transactions'],['Recorded expenses',money(s.spent),'Expenses use positive costs, minus refunds; excludes fund transfers'],['Card purchases (net)',money(s.cards),'After refunds, excluding repayments'],['Reported Amex savings',money(state.savings),'Balance entered by you']].map(([name,num,note])=>`<div class="card"><div class="label">${name}</div><div class="number">${num}</div><div class="note">${note}</div></div>`).join('');const chart=document.getElementById('barChart');let vals=months.slice(0,10).map(m=>stats(m).spent),max=Math.max(...vals.map(v=>Math.max(0,v)),1);chart.innerHTML=vals.map((v,i)=>{let h=Math.max(2,Math.round(Math.max(v,0)/max*160));return `<div class="barwrap"><span class="barval">${v<0?'-':''}$${Math.round(Math.abs(v)/100)/10}k</span><div class="bar ${v<=state.totalLimit?'good':''}" style="height:${h}px" title="${mLabel(months[i])}: ${money(v)}"></div><div class="chartlabel">${mLabel(months[i])}</div></div>`}).join('');let rate=limit>0?s.spent/limit*100:0;document.getElementById('health').innerHTML=`<div style="font-size:35px;font-weight:750;margin:14px 0" class="${diff<0?'danger':'goodtext'}">${diff<0?money(-diff)+' over':money(diff)+' under'}</div><div class="small">Your ${month==='all'?'10-month':'monthly'} spending limit: ${money(limit)}</div><div class="progress"><i class="${rate>=100?'bad':rate>=80?'warn':''}" style="width:${Math.min(100,Math.max(0,rate))}%"></i></div><p class="small">${Math.round(rate)}% of limit used • ${rate>=100?'Over budget':rate>=80?'Approaching your limit':'Within your limit'}</p><p class="small">Income less recorded expenses: <b>${money(s.income-s.spent)}</b> <i>(not actual savings: other accounts and transfers may be missing)</i></p>`;
+let gr={};if(state.rows.length){for(const x of tx().filter(isExpense))gr[x.category]=(gr[x.category]||0)+getSpending(x)}else{gr={'Card purchases and fees':s.cards,'Housing':s.spent-s.cards-(month==='all'?Object.values(seed).reduce((a,x)=>a+x.auto+x.utility,0):((seed[month]?.auto||0)+(seed[month]?.utility||0))),'Transport / auto lease':month==='all'?1989.1:(seed[month]?.auto||0),'Utilities':month==='all'?971.44:(seed[month]?.utility||0)}}document.getElementById('categories').innerHTML=Object.entries(gr).sort((a,b)=>b[1]-a[1]).map(([cat,value])=>`<div class="budgetrow"><div class="budgethead"><b style="font-size:13px">${esc(cat)}</b><b>${money(value)}</b></div><div class="progress"><i style="width:${Math.min(100,Math.max(0,100*value/Math.max(1,s.spent)))}%"></i></div></div>`).join('')||'<p class="small">No expense transactions for this period.</p>';let notes=[];if(!state.rows.length)notes.push('Baseline mode: import statements for category-specific budgets and transaction edits.');if(month==='all')notes.push('2026 totals cover Jan–Oct only, and some card exports end before October.');if(state.rows.length){let pending=tx().filter(x=>x.type==='Unclassified transfer');if(pending.length)notes.push(`${pending.length} remittance/Zelle/cash entries need classification before true savings can be determined.`);for(const [cat,val] of Object.entries(gr)){const b=state.budgets[cat];if(b&&val>b*(month==='all'?10:1))notes.push(`${cat} exceeds its budget by ${money(val-b*(month==='all'?10:1))}.`)}if(!notes.length)notes.push('No alerts based on the imported records and current thresholds.')}document.getElementById('insights').innerHTML=notes.map(x=>`<div class="hint" style="margin:10px 0">${esc(x)}</div>`).join('');refreshFilters();renderTx();renderBreakdown();renderTransfers();if(detailKey!==null)renderDetail()}
+function renderTx(){let query=document.getElementById('search').value.toLowerCase(),acc=document.getElementById('accountFilter').value,catFilter=document.getElementById('categoryFilter').value,rows=tx().filter(x=>(acc==='all'||x.source===acc)&&(catFilter==='all'||x.category===catFilter)&&(x.desc.toLowerCase().includes(query)||String(x.amount).includes(query))).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,500);document.getElementById('txRows').innerHTML=rows.map(x=>{let idx=state.rows.indexOf(x);return `<tr><td>${x.date}</td><td>${esc(x.desc)}<div class="small">${esc(x.source)}</div></td><td style="text-align:right;white-space:nowrap">${money(x.amount)}</td><td><select data-i="${idx}" data-field="category">${Object.keys(state.budgets).concat(['Income','Other inflow','Transfers','Payments','Fund Transfers','Vehicle Registration & Taxes','Refund','Review']).filter((v,i,a)=>a.indexOf(v)===i).map(c=>`<option ${x.category===c?'selected':''}>${esc(c)}</option>`).join('')}</select></td><td><select data-i="${idx}" data-field="type">${['Expense','Refund','Payroll','Other inflow','Credit-card payment','Own-account transfer','Unclassified transfer','Fund transfer'].map(c=>`<option ${x.type===c?'selected':''}>${esc(c)}</option>`).join('')}</select></td></tr>`}).join('');document.getElementById('txCount').textContent=`Showing ${rows.length} transactions${tx().length>500?' (first 500 only)':''}.`}
+function renderBreakdown(){let target=document.getElementById('breakRows');if(!target)return;let data=tx().filter(isExpense),dimension=document.getElementById('breakType').value;const key=x=>dimension==='subcategory'?x.category:dimension==='merchant'?merchantName(x):dimension==='account'?x.source:topGroup(x.category);let m=new Map();for(let x of data)m.set(key(x),(m.get(key(x))||0)+getSpending(x));let sorted=[...m].sort((a,b)=>b[1]-a[1]);window.currentBreakKeys=sorted.map(x=>x[0]);let max=Math.max(1,...sorted.map(x=>Math.max(x[1],0)));target.innerHTML=sorted.map(([n,v],i)=>`<button type="button" class="breakclick" data-break="${i}"><span><b>${esc(n)}</b><span class="sub">Click for monthly totals and transactions</span></span><b>${money(v)} &rsaquo;</b></button>`).join('')||'<div class="hint">Import your statements to see detailed breakdowns.</div>';let g={};for(let x of data)g[topGroup(x.category)]=(g[topGroup(x.category)]||0)+x.amount;let fund=tx().filter(x=>x.type==='Fund transfer'||x.category==='Fund Transfers');let out=fund.filter(x=>x.amount<0).reduce((a,x)=>a-x.amount,0),incoming=fund.filter(x=>x.amount>0).reduce((a,x)=>a+x.amount,0);document.getElementById('fundBreak').innerHTML=`<button class="breakclick" data-fundbreak="true"><span><b>Fund Transfers</b><span class="sub">${fund.length} transactions · Sent ${money(out)} · Received ${money(incoming)}</span></span><b>${money(out-incoming)} net outflow &rsaquo;</b></button>`;document.getElementById('breakSummary').innerHTML=Object.entries(g).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([n,v])=>`<div class="card"><div class="label">${esc(n)}</div><div class="number">${money(v)}</div></div>`).join('');let vehicle=['Car Payments','Gas','EV Charging','Rental Cars','Car Insurance','Parking & Tolls','Rideshare','Vehicle Registration & Taxes'];document.getElementById('vehicleRows').innerHTML=vehicle.map(c=>`<button class="breakclick" data-vehicle="${esc(c)}"><b>${esc(c)}</b><b>${money(data.filter(x=>x.category===c).reduce((a,x)=>a+x.amount,0))} &rsaquo;</b></button>`).join('')}
+
+function openDetail(key,dimension){detailKey=key;detailDimension=dimension;detailMonth='all';showTab('drilldown');renderDetail()}
+function detailMatches(x){if(detailDimension==='fund-transfer')return x.type==='Fund transfer'||x.category==='Fund Transfers';if(!isExpense(x))return false;let k=detailDimension==='subcategory'?x.category:detailDimension==='merchant'?merchantName(x):detailDimension==='account'?x.source:topGroup(x.category);return k===detailKey}
+function renderDetail(){if(detailKey===null)return;let rows=state.rows.filter(x=>x.date.startsWith('2026')&&detailMatches(x));let value=x=>detailDimension==='fund-transfer'?x.amount:getSpending(x);let total=rows.reduce((s,x)=>s+value(x),0),charge=rows.filter(x=>value(x)>0).reduce((s,x)=>s+value(x),0),refund=rows.filter(x=>value(x)<0).reduce((s,x)=>s-value(x),0);document.getElementById('detailTitle').textContent=detailKey;document.getElementById('detailSubtitle').textContent=detailDimension==='fund-transfer'?'January–October 2026 • signed cash movements; outgoing transfers are negative and incoming transfers positive; excluded from spending • click any month':'January–October 2026 • Net spending = charges minus refunds • click any month';document.getElementById('detailCards').innerHTML=[['Net total',total],['Gross charges',charge],['Refunds and credits',refund],['Transactions',rows.length]].map(([k,v])=>`<div class="card"><div class="label">${k}</div><div class="number">${k==='Transactions'?v:money(v)}</div></div>`).join('');let selected=detailMonth;document.getElementById('detailMonths').innerHTML=months.slice(0,10).map(m=>{let r=rows.filter(x=>x.date.slice(5,7)===m),sum=r.reduce((a,x)=>a+value(x),0);return `<button class="breakclick ${selected===m?'selected':''}" data-detailmonth="${m}"><b>${mLabel(m)} 2026</b><span>${money(sum)} <span class="small">(${r.length} transactions)</span> &rsaquo;</span></button>`}).join('');let visible=rows.filter(x=>selected==='all'||x.date.slice(5,7)===selected).sort((a,b)=>b.date.localeCompare(a.date));document.getElementById('detailTransactions').innerHTML=`<h3>${selected==='all'?'All transactions':mLabel(selected)+' transactions'}</h3><div style="overflow:auto"><table><thead><tr><th>Date</th><th>Merchant / description</th><th>Amount</th><th>Account</th></tr></thead><tbody>${visible.map(x=>`<tr><td>${x.date}</td><td>${esc(x.desc)}</td><td>${money(x.amount)}</td><td>${esc(x.source)}</td></tr>`).join('')}</tbody></table></div>`}
+function renderTransfers(){let rows=state.rows.filter(x=>['Unclassified transfer','Fund transfer','Own-account transfer','Credit-card payment'].includes(x.type));const types=[['Needs review','Unclassified transfer'],['Fund transfers','Fund transfer'],['Own transfers','Own-account transfer'],['Card repayments','Credit-card payment']];document.getElementById('transferSummary').innerHTML=types.map(([label,t])=>{let r=rows.filter(x=>x.type===t);return `<div class="card"><div class="label">${label}</div><div class="number">${money(r.reduce((s,x)=>s+Math.abs(x.amount),0))}</div><div class="small">${r.length} entries • absolute movements, not spending</div></div>`}).join('');let filter=document.getElementById('transferFilter').value;document.getElementById('transferRows').innerHTML=rows.filter(x=>filter==='all'||x.type===filter).sort((a,b)=>b.date.localeCompare(a.date)).map(x=>{let i=state.rows.indexOf(x);return `<tr><td>${x.date}</td><td>${esc(x.desc)}<div class="small">${esc(x.source)}</div></td><td>${money(x.amount)}</td><td>${esc(x.type)}</td><td><select data-transfer-index="${i}"><option value="Unclassified transfer" ${x.type==='Unclassified transfer'?'selected':''}>Needs review</option><option value="Fund transfer" ${x.type==='Fund transfer'?'selected':''}>Fund transfer</option><option value="Own-account transfer" ${x.type==='Own-account transfer'?'selected':''}>Own transfer / savings</option><option value="Credit-card payment" ${x.type==='Credit-card payment'?'selected':''}>Card payment</option><option value="Expense">Actual expense</option><option value="Other inflow">Other inflow</option></select></td></tr>`}).join('')||'<tr><td colspan="5">No matching transfer entries. Import statements to populate this view.</td></tr>'}
+
+function refreshFilters(){let a=document.getElementById('accountFilter'),c=document.getElementById('categoryFilter'),av=a.value,cv=c.value;a.innerHTML='<option value="all">All accounts</option>'+[...new Set(state.rows.map(x=>x.source))].sort().map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');c.innerHTML='<option value="all">All categories</option>'+[...new Set(state.rows.map(x=>x.category))].sort().map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');a.value=[...a.options].some(o=>o.value===av)?av:'all';c.value=[...c.options].some(o=>o.value===cv)?cv:'all'}
+function setup(){document.getElementById('monthSelect').innerHTML='<option value="all">2026 year to date (Jan–Oct)</option>'+months.slice(0,10).map(m=>`<option value="${m}">${mLabel(m)} 2026</option>`).join('');document.getElementById('monthSelect').onchange=e=>{month=e.target.value;draw()};document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;document.querySelectorAll('section').forEach(s=>s.classList.toggle('hidden',s.id!==tab));document.querySelectorAll('[data-tab]').forEach(n=>n.classList.toggle('active',n===b));if(tab==='budgets')renderBudget();if(tab==='breakdown')renderBreakdown()});document.getElementById('search').oninput=renderTx;document.getElementById('accountFilter').onchange=renderTx;document.getElementById('categoryFilter').onchange=renderTx;document.getElementById('breakType').onchange=renderBreakdown;document.getElementById('fundBreak').onclick=()=>openDetail('Fund Transfers','fund-transfer');document.getElementById('breakRows').onclick=e=>{let b=e.target.closest('[data-break]');if(b)openDetail(window.currentBreakKeys[Number(b.dataset.break)],document.getElementById('breakType').value)};document.getElementById('vehicleRows').onclick=e=>{let b=e.target.closest('[data-vehicle]');if(b)openDetail(b.dataset.vehicle,'subcategory')};document.getElementById('backBreak').onclick=()=>{detailKey=null;showTab('breakdown')};document.getElementById('detailMonths').onclick=e=>{let b=e.target.closest('[data-detailmonth]');if(b){detailMonth=b.dataset.detailmonth;renderDetail()}};document.getElementById('transferFilter').onchange=renderTransfers;document.getElementById('transferRows').onchange=e=>{let el=e.target;if(el.matches('[data-transfer-index]')){let row=state.rows[Number(el.dataset.transferIndex)];row.type=el.value;row.category=el.value==='Expense'?'Other':el.value==='Other inflow'?'Other inflow':el.value==='Unclassified transfer'?'Review':el.value==='Fund transfer'?'Fund Transfers':'Transfers';save();draw()}};document.getElementById('txRows').onchange=e=>{if(e.target.tagName==='SELECT'){let i=Number(e.target.dataset.i);state.rows[i][e.target.dataset.field]=e.target.value;save();draw()}};document.getElementById('fileImport').onchange=async e=>{let report=[];for(const f of e.target.files){try{let imported=importRows(/\.xlsx$/i.test(f.name)?await parseXLSX(f):/\.xls$/i.test(f.name)?(()=>{throw Error('Legacy .xls is unsupported; save as .xlsx')})():parseCSV(await f.text()),f.name);const old=new Set(state.rows.map(x=>x.id));let n=0;for(const row of imported)if(!old.has(row.id)){state.rows.push(row);old.add(row.id);n++}report.push(`${f.name}: ${n} added, ${imported.length-n} existing skipped`)}catch(ex){report.push(`${f.name}: ${ex.message}`)}}save();document.getElementById('importStatus').textContent=report.join('\n');draw()};document.getElementById('repairCategories').onclick=()=>{let n=0;for(const row of state.rows){let source=/3697/i.test(row.source)?'checking':/6483/i.test(row.source)?'chasecard':/activity\.xlsx|amex/i.test(row.source)?'amex':'capitalone';let categoryHint=row.category;let oldType=row.type;let [category,type]=classify(row.desc,categoryHint,source,'');if(/YOUR CASH REWARD|ANNUAL HOTEL CREDIT|OFFER:TURO/i.test(row.desc)){category='Rewards & statement credits';type='Other inflow'}else if(/COSTCO(?:.*)(?:GAS|FUEL)/i.test(row.desc)){category='Gas';type=oldType==='Refund'?'Refund':'Expense'}else if(/COSTCO/i.test(row.desc)){category='Groceries';type=oldType==='Refund'?'Refund':'Expense'}else if(/WALMART|WAL-MART|WM SUPERCENTER/i.test(row.desc)){category='Groceries';type=oldType==='Refund'?'Refund':'Expense'}else if(/SAFEWAY FUEL/i.test(row.desc)){category='Gas';type=oldType==='Refund'?'Refund':'Expense'}else if(/REMITLY|RMTLY|WESTERN UNION|ZELLE|VENMO/i.test(row.desc)){category='Fund Transfers';type='Fund transfer'}else if(/BILT.*(RENT|HOUSING)|BILT PAYMENT/i.test(row.desc)){category='Rent';type='Expense'}else if(/NISSAN.*AUTO LEASE/i.test(row.desc)){category='Car Payments';type='Expense'}else if(/CO MOTOR VEHICLE SERVICE|COLORADO.*(MOTOR VEHICLE|REGISTRATION)|\bDMV\b/i.test(row.desc)){category='Vehicle Registration & Taxes';type='Expense'}else continue;if(row.category!==category||row.type!==type){row.category=category;row.type=type;n++}}save();draw();document.getElementById('importStatus').textContent=`Reclassified ${n} imported entries. Fund transfers are excluded from spending by default; this action may override prior manual classifications for these merchants.`};document.getElementById('clearData').onclick=()=>{if(confirm('Delete all imported transactions from this browser?')){state.rows=[];save();draw();document.getElementById('importStatus').textContent='Imported transactions cleared. Baseline overview restored.'}};document.getElementById('exportData').onclick=()=>{let rows=[['Date','Description','Amount','Category','Type','Source'],...state.rows.map(x=>[x.date,x.desc,x.amount,x.category,x.type,x.source])];let csv=rows.map(r=>r.map(v=>'"'+String(v).replaceAll('"','""')+'"').join(',')).join('\r\n'),blob=new Blob([csv],{type:'text/csv'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='spending-compass-transactions.csv';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};document.getElementById('saveSettings').onclick=()=>{for(const [field,id] of [['totalLimit','totalLimit'],['incomeTarget','incomeTarget'],['savings','savingsBalance']]){let v=Number(document.getElementById(id).value);if(Number.isFinite(v)&&v>=0)state[field]=v}save();draw();alert('Settings saved in this browser.')};document.getElementById('saveBudget').onclick=()=>{document.querySelectorAll('[data-budget]').forEach(el=>state.budgets[el.dataset.budget]=Math.max(0,Number(el.value)||0));save();draw();alert('Budgets saved.')};renderBudget();draw()}
+function renderBudget(){document.getElementById('budgetFields').innerHTML=Object.entries(state.budgets).map(([k,v])=>`<div class="budgetedit"><b style="font-size:13px">${esc(k)}</b><input class="input" data-budget="${esc(k)}" type="number" min="0" value="${v}"></div>`).join('');document.getElementById('totalLimit').value=state.totalLimit;document.getElementById('incomeTarget').value=state.incomeTarget;document.getElementById('savingsBalance').value=state.savings}
+setup();
+</script></body></html>
