@@ -100,7 +100,7 @@ async function parseXLSX(file){
  }
  throw Error('No recognized Amex transaction worksheet');}
 
-function ISO(s){s=String(s||'').trim();if(/^\d{4}-\d\d-\d\d$/.test(s))return s;let v=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);return v?`${v[3]}-${v[1].padStart(2,'0')}-${v[2].padStart(2,'0')}`:null}
+function ISO(s){s=String(s||'').trim();if(/^\d{4}-\d\d-\d\d$/.test(s))return s;let v=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(v)return `${v[3]}-${v[1].padStart(2,'0')}-${v[2].padStart(2,'0')}`;const short=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/);return short?`20${short[3]}-${short[1].padStart(2,'0')}-${short[2].padStart(2,'0')}`:null}
 function classify(desc,category,source,type){let d=String(desc||'').toUpperCase(),c=String(category||'').toUpperCase(),t=String(type||'').toUpperCase();
 if(source==='checking'&&/PAYMENT TO CHASE|CHASE CREDIT CRD|CAPITAL ONE.*CRCARD|AMERICAN EXPRESS ACH/.test(d))return ['Payments','Credit-card payment'];
 if(/PAYMENT - THANK|AUTOPAY PAYMENT|MOBILE PAYMENT - THANK|PAYMENT THANK YOU|CAPITAL ONE (AUTOPAY|MOBILE) PYMT|^AUTOMATIC PAYMENT/.test(d)||t==='PAYMENT')return ['Payments','Credit-card payment'];
@@ -227,7 +227,7 @@ function renderSimple(){
  const savingsEnd=sav.length?add(sav,x=>x.date<=cutoff):null;
  const allIncome=add(selected,x=>x.type==='Payroll'||x.type==='Savings interest');
  renderDash();
- document.getElementById('financialSummaryNote').innerHTML='Income recognized: <b>'+money(allIncome)+'</b> · Expenses recorded: <b>'+money(economic)+'</b>. These are not cash balances; checking reconciles with deposits and withdrawals above.';
+ document.getElementById('financialSummaryNote').innerHTML='Recognized payroll + savings interest: <b>'+money(allIncome)+'</b> · Recorded purchases and bills, after refunds: <b>'+money(economic)+'</b>. Transfers and card repayments are excluded from spending. Totals reflect only imported files, not unimported accounts or pending charges.';
  const mths=months.slice(0,10);
  const rows=mths.map(m=>{let c=chk.filter(x=>x.date.slice(5,7)===m),v=sav.filter(x=>x.date.slice(5,7)===m),income=add(c,x=>x.amount>0),out=-add(c,x=>x.amount<0),svin=add(v,x=>x.amount>0),svout=-add(v,x=>x.amount<0),intr=add(v,x=>x.type==='Savings interest');return {m,c,income,out,svin,svout,intr,svnet:svin-svout,sp:stats(m).spent}});
  const displayRows=month==='all'?rows:rows.filter(x=>x.m===month);
